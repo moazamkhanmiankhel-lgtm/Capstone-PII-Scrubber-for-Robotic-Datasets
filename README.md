@@ -13,7 +13,7 @@ A context-preserving PII scrubbing prototype for robotic datasets.
 
 ## Team Components
 
-- Video scrubbing: Mir
-- Text scrubbing: Moazam
-- Database and token system: Andre
-- Audio processing and integration: Aiden
+- Video scrubbing: 
+- Text scrubbing: 
+- Database and token system: 
+- Audio processing and integration: 
