@@ -11,9 +11,3 @@ A context-preserving PII scrubbing prototype for robotic datasets.
 - Separated primary and protected storage
 - Controlled context retrieval
 
-## Team Components
-
-- Video scrubbing: 
-- Text scrubbing: 
-- Database and token system: 
-- Audio processing and integration: 
