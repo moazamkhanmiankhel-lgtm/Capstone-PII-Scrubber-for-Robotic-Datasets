@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.env
+
+output/*
+!output/.gitkeep
+
+*.db
+*.sqlite
+*.mp4
+*.avi
+*.wav
+data/*.db
+data/*.sqlite
