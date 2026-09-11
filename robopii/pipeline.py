@@ -20,8 +20,11 @@ def process_video(input_path: str) -> ProcessingResult:
     initialise_databases()
 
     input_file = Path(input_path)
-    output_path = Path("output") / f"scrubbed_{input_file.name}"
-
+    output_path = (
+        Path("output")
+        / "scrubbed_frames"
+        / input_file.stem
+    )
     visual_result = scrub_video(
         input_path=input_path,
         output_path=str(output_path),
