@@ -9,9 +9,11 @@ output/*
 
 *.db
 *.sqlite
+*.key
 *.mp4
 *.avi
 *.wav
 data/*.db
 data/*.sqlite
+data/vault.key
 data/original_frames/
