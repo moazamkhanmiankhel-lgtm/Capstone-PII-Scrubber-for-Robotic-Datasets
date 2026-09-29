@@ -2,3 +2,4 @@ opencv-python>=4.8,<5
 pytest>=8,<10
 mediapipe
 cryptography>=42
+openai-whisper==20250625
