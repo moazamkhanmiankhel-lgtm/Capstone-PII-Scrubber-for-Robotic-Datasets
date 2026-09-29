@@ -95,6 +95,24 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
         def __exit__(self, *args):
             pass
 
+    class FakeWriter:
+        def __init__(self, path, fourcc, fps, size):
+            self.path = path
+            self.frames = []
+            assert fps == 30.0
+            assert size == (50, 50)
+
+        def isOpened(self):
+            return True
+
+        def write(self, frame):
+            self.frames.append(frame.copy())
+
+        def release(self):
+            assert len(self.frames) == 2
+            from pathlib import Path
+            Path(self.path).write_bytes(b"mock mp4")
+
     class FakeRecognizer:
         def __init__(self):
             self.token = None
@@ -124,6 +142,7 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
     configure_storage(data_dir=tmp_path / "database")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(cv2, "VideoCapture", FakeCapture)
+    monkeypatch.setattr(cv2, "VideoWriter", FakeWriter)
     monkeypatch.setattr(video_scrubber, "_create_face_detector", lambda mode: FakeDetector())
     monkeypatch.setattr(video_scrubber, "_detect_faces", lambda *args: [(5, 5, 25, 25)])
     monkeypatch.setattr("robopii.face_recognizer.InMemoryFaceRecognizer", FakeRecognizer)
@@ -131,9 +150,13 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
         result = video_pipeline.process_video_only(str(input_file))
         assert len(result.tokens) == 1
         assert get_primary_record(result.record_id)["tokens"] == result.tokens
+        assert get_primary_record(result.record_id)["scrubbed_media_path"] == result.scrubbed_media_path
+        assert result.scrubbed_media_path.endswith(".mp4")
+        assert (tmp_path / result.scrubbed_media_path).is_file()
         assert get_protected_vault().count_mappings() == 1
         second = video_pipeline.process_video_only(str(input_file))
         assert second.tokens == result.tokens
+        assert second.scrubbed_media_path != result.scrubbed_media_path
         assert get_primary_record(second.record_id)["tokens"] == result.tokens
         assert get_protected_vault().count_mappings() == 1
     finally:
