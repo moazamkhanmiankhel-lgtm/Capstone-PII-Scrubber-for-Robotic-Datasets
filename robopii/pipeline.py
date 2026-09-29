@@ -28,12 +28,13 @@ def process_video(input_path: str) -> ProcessingResult:
     visual_result = scrub_video(
         input_path=input_path,
         output_path=str(output_path),
+        tokenize_faces=True,
     )
 
     transcript_result = transcribe_audio(input_path)
     text_result = scrub_text(transcript_result.transcript)
 
-    tokens = []
+    tokens = list(visual_result.tokens)
 
     for detected_entity in text_result.detected_pii:
         mapping = resolve_or_create_token(detected_entity)

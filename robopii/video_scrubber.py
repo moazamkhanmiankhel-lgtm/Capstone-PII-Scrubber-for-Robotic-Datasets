@@ -2,11 +2,13 @@
 
 from pathlib import Path
 from time import perf_counter
+import base64
+import numpy as np
 
 import cv2
 import mediapipe as mp
 
-from robopii.models import VisualScrubResult
+from robopii.models import DetectedPII, VisualScrubResult
 
 
 MODEL_PATH = (
@@ -200,6 +202,7 @@ def scrub_video(
     input_path: str,
     output_path: str,
     original_output_dir: str | None = None,
+    tokenize_faces: bool = False,
 ) -> VisualScrubResult:
     """Extract original and scrubbed image frames from a video."""
     started_at = perf_counter()
@@ -246,6 +249,19 @@ def scrub_video(
 
     frame_number = 0
     faces_detected = 0
+    tokens: set[str] = set()
+    recognizer = None
+    if tokenize_faces:
+        from robopii.face_recognizer import InMemoryFaceRecognizer
+        from robopii.storage import get_protected_vault
+
+        recognizer = InMemoryFaceRecognizer()
+        for mapping in get_protected_vault().list_face_mappings():
+            vector = np.frombuffer(
+                base64.b64decode(mapping.original_value, validate=True),
+                dtype="<f4",
+            )
+            recognizer.register_embedding(mapping.token, vector)
 
     try:
         with _create_face_detector(
@@ -290,6 +306,34 @@ def scrub_video(
                     timestamp_ms,
                 )
 
+                if recognizer is not None:
+                    from robopii.token_manager import resolve_or_create_token
+
+                    frame_height, frame_width = frame.shape[:2]
+                    for x, y, width, height in face_regions:
+                        x1, y1 = max(0, int(x)), max(0, int(y))
+                        x2 = min(frame_width, int(x + width))
+                        y2 = min(frame_height, int(y + height))
+                        if x2 <= x1 or y2 <= y1:
+                            continue
+                        face = frame[y1:y2, x1:x2]
+                        match = recognizer.identify(face)
+                        if match.matched and match.token is not None:
+                            token = match.token
+                        else:
+                            # The embedding stays encrypted in the protected
+                            # vault; only its random token enters the record.
+                            embedding = recognizer.create_embedding(face)
+                            value = base64.b64encode(
+                                embedding.astype("<f4").tobytes()
+                            ).decode("ascii")
+                            mapping = resolve_or_create_token(
+                                DetectedPII("FACE", value, "[FACE]")
+                            )
+                            token = mapping.token
+                            recognizer.register(token, face)
+                        tokens.add(token)
+
                 scrubbed_frame = frame.copy()
 
                 faces_detected += _blur_regions(
@@ -315,4 +359,5 @@ def scrub_video(
         processing_time_seconds=(
             perf_counter() - started_at
         ),
+        tokens=sorted(tokens),
     )

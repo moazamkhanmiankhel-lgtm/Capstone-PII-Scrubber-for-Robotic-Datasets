@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+import cv2
+
 
 from robopii.video_scrubber import (
     _blur_regions,
@@ -61,3 +63,75 @@ def test_blur_regions_blurs_detected_area():
         frame[0:10, 0:10],
         original_frame[0:10, 0:10],
     )
+
+
+def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
+    from robopii import pipeline, video_scrubber
+    from robopii.storage import configure_storage, get_primary_record, get_protected_vault
+
+    class FakeCapture:
+        def __init__(self, path):
+            self.frames = 2
+
+        def isOpened(self):
+            return True
+
+        def get(self, property_id):
+            return 30.0
+
+        def read(self):
+            if not self.frames:
+                return False, None
+            self.frames -= 1
+            return True, np.full((50, 50, 3), 125, dtype=np.uint8)
+
+        def release(self):
+            pass
+
+    class FakeDetector:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+    class FakeRecognizer:
+        def __init__(self):
+            self.token = None
+
+        def identify(self, face):
+            from robopii.face_recognizer import FaceMatch
+            return FaceMatch(self.token, 1.0, self.token is not None)
+
+        def create_embedding(self, face):
+            return np.array([0.5, 0.5], dtype=np.float32)
+
+        def register(self, token, face):
+            self.token = token
+
+        def register_embedding(self, token, embedding):
+            assert np.allclose(embedding, [0.5, 0.5])
+            self.token = token
+
+    input_file = tmp_path / "input.mp4"
+    input_file.touch()
+    configure_storage(data_dir=tmp_path / "database")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cv2, "VideoCapture", FakeCapture)
+    monkeypatch.setattr(video_scrubber, "_create_face_detector", lambda mode: FakeDetector())
+    monkeypatch.setattr(video_scrubber, "_detect_faces", lambda *args: [(5, 5, 25, 25)])
+    monkeypatch.setattr("robopii.face_recognizer.InMemoryFaceRecognizer", FakeRecognizer)
+    monkeypatch.setattr(pipeline, "transcribe_audio", lambda path: type("Transcript", (), {"transcript": ""})())
+    monkeypatch.setattr(pipeline, "scrub_text", lambda text: type("Text", (), {"detected_pii": [], "scrubbed_text": ""})())
+
+    try:
+        result = pipeline.process_video(str(input_file))
+        assert len(result.tokens) == 1
+        assert get_primary_record(result.record_id)["tokens"] == result.tokens
+        assert get_protected_vault().count_mappings() == 1
+        second = pipeline.process_video(str(input_file))
+        assert second.tokens == result.tokens
+        assert get_primary_record(second.record_id)["tokens"] == result.tokens
+        assert get_protected_vault().count_mappings() == 1
+    finally:
+        configure_storage()
