@@ -1,0 +1,54 @@
+# RoboPII shared settings.
+#
+# Loaded by robopii/config.py. Relative paths are resolved against the
+# project root, not the directory the command is run from.
+#
+# Priority, highest first:
+#   1. Environment variables (ROBOPII_DATA_DIR, ROBOPII_VAULT_SECRET, ...)
+#   2. This file (or the file named by ROBOPII_CONFIG)
+#   3. Defaults in robopii/config.py
+#
+# Unknown keys are rejected so a typo cannot silently fall back to a default.
+
+storage:
+  # Directory holding primary.db, vault.db and vault.key.
+  data_dir: data
+
+pipeline:
+  # Scrubbed frames and images are written to <output_dir>/<record_id>/.
+  # The record ID is used instead of the input file name because file names
+  # can themselves contain PII (for example "jane_smith_0412345678.mp4").
+  output_dir: output/scrubbed
+
+  # The video scrubber also writes the unblurred frames. By default the
+  # pipeline sends those to a temporary directory and deletes them once the
+  # record has been stored. Set to true only for debugging on synthetic data.
+  keep_original_frames: false
+
+  # Transcribe the audio track of video inputs. A video with no audio track
+  # is still stored, with a null transcript.
+  transcribe_video_audio: true
+
+  # Replace numbered placeholders such as [PERSON_1] in the stored transcript
+  # with the person's pseudonymised token, for example [PERSON_A1B2C3D4E5F6].
+  # This lets a later retrieval tell which token said or was named in what.
+  # Set to false to keep the text scrubber's numbered placeholders.
+  link_tokens_in_transcript: true
+
+  # After scrubbing, check that no detected original value is still present
+  # in the transcript before anything is written. Leave on.
+  verify_no_raw_pii: true
+
+retrieval:
+  # Actors allowed to reveal the identity behind a token. Every attempt,
+  # allowed or denied, is written to the vault access log.
+  authorised_actors:
+    - operator
+    - researcher
+
+  # A reason must be given for every identity lookup and must be at least
+  # this many characters long.
+  min_reason_length: 5
+
+  # Maximum number of past records returned for one token.
+  max_records: 20

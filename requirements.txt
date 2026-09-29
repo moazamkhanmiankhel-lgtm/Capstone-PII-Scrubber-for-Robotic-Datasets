@@ -3,3 +3,5 @@ pytest>=8,<10
 mediapipe
 cryptography>=42
 openai-whisper==20250625
+pyyaml>=6
+spacy>=3.7,<4
