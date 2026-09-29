@@ -19,6 +19,17 @@ MODEL_PATH = (
 )
 
 
+def _box_overlap(a, b) -> float:
+    """Return intersection over union for two face boxes."""
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    intersection = max(0, min(ax + aw, bx + bw) - max(ax, bx)) * max(
+        0, min(ay + ah, by + bh) - max(ay, by)
+    )
+    union = aw * ah + bw * bh - intersection
+    return intersection / union if union > 0 else 0.0
+
+
 def _create_face_detector(running_mode):
     """Create a MediaPipe face detector."""
     if not MODEL_PATH.is_file():
@@ -250,6 +261,7 @@ def scrub_video(
     frame_number = 0
     faces_detected = 0
     tokens: set[str] = set()
+    recent_faces: list[tuple[tuple[int, int, int, int], str, int]] = []
     recognizer = None
     if tokenize_faces:
         from robopii.face_recognizer import InMemoryFaceRecognizer
@@ -310,6 +322,11 @@ def scrub_video(
                     from robopii.token_manager import resolve_or_create_token
 
                     frame_height, frame_width = frame.shape[:2]
+                    recent_faces = [
+                        track for track in recent_faces
+                        if frame_number - track[2] <= 10
+                    ]
+                    used_tracks: set[int] = set()
                     for x, y, width, height in face_regions:
                         x1, y1 = max(0, int(x)), max(0, int(y))
                         x2 = min(frame_width, int(x + width))
@@ -317,21 +334,35 @@ def scrub_video(
                         if x2 <= x1 or y2 <= y1:
                             continue
                         face = frame[y1:y2, x1:x2]
-                        match = recognizer.identify(face)
-                        if match.matched and match.token is not None:
-                            token = match.token
+                        box = (x1, y1, x2 - x1, y2 - y1)
+                        nearest = max(
+                            (i for i in range(len(recent_faces)) if i not in used_tracks),
+                            key=lambda i: _box_overlap(box, recent_faces[i][0]),
+                            default=None,
+                        )
+                        if nearest is not None and _box_overlap(
+                            box, recent_faces[nearest][0]
+                        ) >= 0.3:
+                            token = recent_faces[nearest][1]
+                            recent_faces[nearest] = (box, token, frame_number)
+                            used_tracks.add(nearest)
                         else:
-                            # The embedding stays encrypted in the protected
-                            # vault; only its random token enters the record.
-                            embedding = recognizer.create_embedding(face)
-                            value = base64.b64encode(
-                                embedding.astype("<f4").tobytes()
-                            ).decode("ascii")
-                            mapping = resolve_or_create_token(
-                                DetectedPII("FACE", value, "[FACE]")
-                            )
-                            token = mapping.token
-                            recognizer.register(token, face)
+                            match = recognizer.identify(face)
+                            if match.matched and match.token is not None:
+                                token = match.token
+                            else:
+                                # Store the template only in the encrypted vault.
+                                embedding = recognizer.create_embedding(face)
+                                value = base64.b64encode(
+                                    embedding.astype("<f4").tobytes()
+                                ).decode("ascii")
+                                mapping = resolve_or_create_token(
+                                    DetectedPII("FACE", value, "[FACE]")
+                                )
+                                token = mapping.token
+                                recognizer.register(token, face)
+                            recent_faces.append((box, token, frame_number))
+                            used_tracks.add(len(recent_faces) - 1)
                         tokens.add(token)
 
                 scrubbed_frame = frame.copy()

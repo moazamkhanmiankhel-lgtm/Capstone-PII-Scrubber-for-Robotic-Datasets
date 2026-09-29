@@ -66,7 +66,7 @@ def test_blur_regions_blurs_detected_area():
 
 
 def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
-    from robopii import pipeline, video_scrubber
+    from robopii import video_pipeline, video_scrubber
     from robopii.storage import configure_storage, get_primary_record, get_protected_vault
 
     class FakeCapture:
@@ -98,10 +98,15 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
     class FakeRecognizer:
         def __init__(self):
             self.token = None
+            self.loaded_from_vault = False
 
         def identify(self, face):
             from robopii.face_recognizer import FaceMatch
-            return FaceMatch(self.token, 1.0, self.token is not None)
+            return FaceMatch(
+                self.token if self.loaded_from_vault else None,
+                1.0 if self.loaded_from_vault else 0.0,
+                self.loaded_from_vault,
+            )
 
         def create_embedding(self, face):
             return np.array([0.5, 0.5], dtype=np.float32)
@@ -112,6 +117,7 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
         def register_embedding(self, token, embedding):
             assert np.allclose(embedding, [0.5, 0.5])
             self.token = token
+            self.loaded_from_vault = True
 
     input_file = tmp_path / "input.mp4"
     input_file.touch()
@@ -121,15 +127,12 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
     monkeypatch.setattr(video_scrubber, "_create_face_detector", lambda mode: FakeDetector())
     monkeypatch.setattr(video_scrubber, "_detect_faces", lambda *args: [(5, 5, 25, 25)])
     monkeypatch.setattr("robopii.face_recognizer.InMemoryFaceRecognizer", FakeRecognizer)
-    monkeypatch.setattr(pipeline, "transcribe_audio", lambda path: type("Transcript", (), {"transcript": ""})())
-    monkeypatch.setattr(pipeline, "scrub_text", lambda text: type("Text", (), {"detected_pii": [], "scrubbed_text": ""})())
-
     try:
-        result = pipeline.process_video(str(input_file))
+        result = video_pipeline.process_video_only(str(input_file))
         assert len(result.tokens) == 1
         assert get_primary_record(result.record_id)["tokens"] == result.tokens
         assert get_protected_vault().count_mappings() == 1
-        second = pipeline.process_video(str(input_file))
+        second = video_pipeline.process_video_only(str(input_file))
         assert second.tokens == result.tokens
         assert get_primary_record(second.record_id)["tokens"] == result.tokens
         assert get_protected_vault().count_mappings() == 1
