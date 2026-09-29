@@ -214,8 +214,9 @@ def scrub_video(
     output_path: str,
     original_output_dir: str | None = None,
     tokenize_faces: bool = False,
+    output_video_path: str | None = None,
 ) -> VisualScrubResult:
-    """Extract original and scrubbed image frames from a video."""
+    """Scrub frames and optionally encode them into a silent MP4."""
     started_at = perf_counter()
 
     input_file = Path(input_path)
@@ -263,6 +264,10 @@ def scrub_video(
     tokens: set[str] = set()
     recent_faces: list[tuple[tuple[int, int, int, int], str, int]] = []
     recognizer = None
+    video_writer = None
+    video_file = Path(output_video_path) if output_video_path else None
+    if video_file is not None:
+        video_file.parent.mkdir(parents=True, exist_ok=True)
     if tokenize_faces:
         from robopii.face_recognizer import InMemoryFaceRecognizer
         from robopii.storage import get_protected_vault
@@ -372,6 +377,21 @@ def scrub_video(
                     face_regions,
                 )
 
+                if video_file is not None:
+                    if video_writer is None:
+                        height, width = scrubbed_frame.shape[:2]
+                        video_writer = cv2.VideoWriter(
+                            str(video_file),
+                            cv2.VideoWriter_fourcc(*"mp4v"),
+                            fps,
+                            (width, height),
+                        )
+                        if not video_writer.isOpened():
+                            video_writer.release()
+                            video_writer = None
+                            raise OSError(f"Could not open MP4 output: {video_file}")
+                    video_writer.write(scrubbed_frame)
+
                 if not cv2.imwrite(
                     str(scrubbed_path),
                     scrubbed_frame,
@@ -383,9 +403,18 @@ def scrub_video(
 
     finally:
         capture.release()
+        if video_writer is not None:
+            video_writer.release()
+
+    if video_file is not None and video_writer is None:
+        raise ValueError("Input video has no readable frames.")
+    if video_file is not None and (
+        not video_file.is_file() or video_file.stat().st_size == 0
+    ):
+        raise OSError(f"Could not write scrubbed MP4: {video_file}")
 
     return VisualScrubResult(
-        output_path=str(scrubbed_dir),
+        output_path=str(video_file if video_file is not None else scrubbed_dir),
         faces_detected=faces_detected,
         processing_time_seconds=(
             perf_counter() - started_at
