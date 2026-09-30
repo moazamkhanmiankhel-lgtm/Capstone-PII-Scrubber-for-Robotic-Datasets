@@ -262,6 +262,42 @@ class TestVideoPipeline:
         assert stored["metadata"]["audio_status"] == "transcribed"
         assert {"visual", "transcription"} <= set(stored["metadata"]["timings_seconds"])
 
+    def test_media_path_inside_project_is_stored_relative(self, settings, fakes, media_file):
+        """An absolute path would include the home folder, often a real name."""
+        import shutil
+        from uuid import uuid4
+
+        from robopii.config import PROJECT_ROOT
+
+        output_dir = PROJECT_ROOT / "output" / f"pytest_{uuid4().hex}"
+        settings = with_pipeline(settings, output_dir=output_dir)
+
+        try:
+            result = Pipeline(settings, fakes.components()).process_video(
+                media_file("clip.mp4")
+            )
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+        stored = get_primary_record(result.record_id)["scrubbed_media_path"]
+
+        assert stored == f"output/{output_dir.name}/{result.record_id}"
+        assert result.scrubbed_media_path == stored
+        assert str(PROJECT_ROOT.parent) not in stored
+
+    def test_audit_catches_a_name_in_the_media_path(
+        self, settings, fakes, media_file, tmp_path
+    ):
+        """A username in an absolute path is PII that no pattern can see."""
+        fakes.audio.transcript = "Hi, I'm Jane Smith."
+        settings = with_pipeline(
+            settings, output_dir=tmp_path / "Jane Smith" / "output"
+        )
+
+        Pipeline(settings, fakes.components()).process_video(media_file("clip.mp4"))
+
+        assert not audit_primary_store().passed
+
     def test_original_frames_are_deleted(self, settings, fakes, media_file):
         Pipeline(settings, fakes.components()).process_video(media_file("clip.mp4"))
 

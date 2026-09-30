@@ -33,7 +33,7 @@ from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
-from robopii.config import Settings, get_config
+from robopii.config import PROJECT_ROOT, Settings, get_config
 from robopii.models import (
     DetectedPII,
     ProcessingResult,
@@ -175,6 +175,25 @@ def find_leaked_values(
         and entity.original_value.strip()
         and _value_pattern(entity.original_value).search(text)
     ]
+
+
+def storable_media_path(path: str | Path) -> str:
+    """Return the media path in the form stored in the primary store.
+
+    Paths inside the project are stored relative to the project root, for
+    example ``output/scrubbed/<record_id>``. An absolute path would carry
+    the home folder, and on most machines the home folder is the user's
+    name (``C:\\Users\\Andre\\...``), which is PII.
+
+    Paths outside the project are kept as given; ``audit_primary_store``
+    will report them if they contain a known identity.
+    """
+    resolved = Path(path).resolve()
+
+    try:
+        return resolved.relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        return str(path)
 
 
 def link_placeholders_to_tokens(
@@ -481,7 +500,9 @@ class Pipeline:
         }
 
         scrubbed_media_path = (
-            None if visual_result is None else visual_result.output_path
+            None
+            if visual_result is None
+            else storable_media_path(visual_result.output_path)
         )
         scrubbed_transcript = (
             None if text_outcome is None else text_outcome.scrubbed_text

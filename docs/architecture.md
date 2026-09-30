@@ -91,6 +91,12 @@ processed:
 File names can contain PII (for example `jane_smith_0412345678.mp4`), and the
 media path is stored in the primary database.
 
+The stored path is relative to the project root (`output/scrubbed/<record_id>`),
+not absolute. An absolute path includes the home folder, which on most
+machines is the user's name (`C:\Users\Andre\...`). This was found by
+`python main.py audit` during manual testing on Windows: the tester's
+spoken name matched their username inside the stored media path.
+
 **Tokens in transcripts.** The text scrubber returns numbered placeholders
 (`[PERSON_1]`). The pipeline replaces each one with the token it resolved to
 (`[PERSON_A1B2C3D4E5F6]`). The same person therefore reads the same way
