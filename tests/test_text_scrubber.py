@@ -85,3 +85,27 @@ def test_scrubbed_text_contains_no_original_values():
 
     for item in result.detected_pii:
         assert item.original_value not in result.scrubbed_text
+
+
+def test_transcribed_email_without_at_sign_is_detected():
+    """The at sign rarely survives transcription, so the spoken form
+    with literal dots must still be caught."""
+    result = scrub_text("email me at jane.smith at example.com")
+
+    assert "jane.smith" not in result.scrubbed_text
+    assert "example.com" not in result.scrubbed_text
+    assert result.detected_pii[0].pii_type == "EMAIL"
+
+
+def test_bare_domain_is_redacted_as_a_known_false_positive():
+    """Domain suffix matching over-redacts ordinary web addresses.
+    This is deliberate: over-redaction is the safer failure."""
+    result = scrub_text("Check out westfield.com for the sale")
+
+    assert "westfield.com" not in result.scrubbed_text
+
+
+def test_at_in_ordinary_speech_is_not_treated_as_an_email():
+    result = scrub_text("Meet me at the shops")
+
+    assert result.scrubbed_text == "Meet me at the shops"
