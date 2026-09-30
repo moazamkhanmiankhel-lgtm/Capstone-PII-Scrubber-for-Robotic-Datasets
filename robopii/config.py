@@ -56,6 +56,8 @@ class PipelineSettings:
     transcribe_video_audio: bool = True
     link_tokens_in_transcript: bool = True
     verify_no_raw_pii: bool = True
+    tokenize_faces: bool = True
+    write_scrubbed_mp4: bool = True
 
 
 @dataclass(frozen=True)
@@ -169,6 +171,8 @@ def settings_from_dict(
         "transcribe_video_audio",
         "link_tokens_in_transcript",
         "verify_no_raw_pii",
+        "tokenize_faces",
+        "write_scrubbed_mp4",
     ):
         if key in pipeline_raw:
             pipeline_values[key] = _require_bool(

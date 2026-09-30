@@ -39,6 +39,15 @@ pipeline:
   # in the transcript before anything is written. Leave on.
   verify_no_raw_pii: true
 
+  # Give each face in a video a PERSON_ token, reused when the same face
+  # appears again in a later video. The face template (an embedding, not an
+  # image) is stored only in the encrypted vault.
+  tokenize_faces: true
+
+  # Also write the blurred frames as <output_dir>/<record_id>/scrubbed.mp4
+  # (video only, no audio). The stored media path then points at the MP4.
+  write_scrubbed_mp4: true
+
 retrieval:
   # Actors allowed to reveal the identity behind a token. Every attempt,
   # allowed or denied, is written to the vault access log.

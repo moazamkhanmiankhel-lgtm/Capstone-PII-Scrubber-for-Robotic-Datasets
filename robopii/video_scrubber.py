@@ -2,11 +2,13 @@
 
 from pathlib import Path
 from time import perf_counter
+import base64
+import numpy as np
 
 import cv2
 import mediapipe as mp
 
-from robopii.models import VisualScrubResult
+from robopii.models import DetectedPII, VisualScrubResult
 
 
 MODEL_PATH = (
@@ -15,6 +17,17 @@ MODEL_PATH = (
     / "models"
     / "blaze_face_short_range.tflite"
 )
+
+
+def _box_overlap(a, b) -> float:
+    """Return intersection over union for two face boxes."""
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    intersection = max(0, min(ax + aw, bx + bw) - max(ax, bx)) * max(
+        0, min(ay + ah, by + bh) - max(ay, by)
+    )
+    union = aw * ah + bw * bh - intersection
+    return intersection / union if union > 0 else 0.0
 
 
 def _create_face_detector(running_mode):
@@ -200,8 +213,10 @@ def scrub_video(
     input_path: str,
     output_path: str,
     original_output_dir: str | None = None,
+    tokenize_faces: bool = False,
+    output_video_path: str | None = None,
 ) -> VisualScrubResult:
-    """Extract original and scrubbed image frames from a video."""
+    """Scrub frames and optionally encode them into a silent MP4."""
     started_at = perf_counter()
 
     input_file = Path(input_path)
@@ -246,6 +261,24 @@ def scrub_video(
 
     frame_number = 0
     faces_detected = 0
+    tokens: set[str] = set()
+    recent_faces: list[tuple[tuple[int, int, int, int], str, int]] = []
+    recognizer = None
+    video_writer = None
+    video_file = Path(output_video_path) if output_video_path else None
+    if video_file is not None:
+        video_file.parent.mkdir(parents=True, exist_ok=True)
+    if tokenize_faces:
+        from robopii.face_recognizer import InMemoryFaceRecognizer
+        from robopii.storage import get_protected_vault
+
+        recognizer = InMemoryFaceRecognizer()
+        for mapping in get_protected_vault().list_face_mappings():
+            vector = np.frombuffer(
+                base64.b64decode(mapping.original_value, validate=True),
+                dtype="<f4",
+            )
+            recognizer.register_embedding(mapping.token, vector)
 
     try:
         with _create_face_detector(
@@ -290,12 +323,74 @@ def scrub_video(
                     timestamp_ms,
                 )
 
+                if recognizer is not None:
+                    from robopii.token_manager import resolve_or_create_token
+
+                    frame_height, frame_width = frame.shape[:2]
+                    recent_faces = [
+                        track for track in recent_faces
+                        if frame_number - track[2] <= 10
+                    ]
+                    used_tracks: set[int] = set()
+                    for x, y, width, height in face_regions:
+                        x1, y1 = max(0, int(x)), max(0, int(y))
+                        x2 = min(frame_width, int(x + width))
+                        y2 = min(frame_height, int(y + height))
+                        if x2 <= x1 or y2 <= y1:
+                            continue
+                        face = frame[y1:y2, x1:x2]
+                        box = (x1, y1, x2 - x1, y2 - y1)
+                        nearest = max(
+                            (i for i in range(len(recent_faces)) if i not in used_tracks),
+                            key=lambda i: _box_overlap(box, recent_faces[i][0]),
+                            default=None,
+                        )
+                        if nearest is not None and _box_overlap(
+                            box, recent_faces[nearest][0]
+                        ) >= 0.3:
+                            token = recent_faces[nearest][1]
+                            recent_faces[nearest] = (box, token, frame_number)
+                            used_tracks.add(nearest)
+                        else:
+                            match = recognizer.identify(face)
+                            if match.matched and match.token is not None:
+                                token = match.token
+                            else:
+                                # Store the template only in the encrypted vault.
+                                embedding = recognizer.create_embedding(face)
+                                value = base64.b64encode(
+                                    embedding.astype("<f4").tobytes()
+                                ).decode("ascii")
+                                mapping = resolve_or_create_token(
+                                    DetectedPII("FACE", value, "[FACE]")
+                                )
+                                token = mapping.token
+                                recognizer.register(token, face)
+                            recent_faces.append((box, token, frame_number))
+                            used_tracks.add(len(recent_faces) - 1)
+                        tokens.add(token)
+
                 scrubbed_frame = frame.copy()
 
                 faces_detected += _blur_regions(
                     scrubbed_frame,
                     face_regions,
                 )
+
+                if video_file is not None:
+                    if video_writer is None:
+                        height, width = scrubbed_frame.shape[:2]
+                        video_writer = cv2.VideoWriter(
+                            str(video_file),
+                            cv2.VideoWriter_fourcc(*"mp4v"),
+                            fps,
+                            (width, height),
+                        )
+                        if not video_writer.isOpened():
+                            video_writer.release()
+                            video_writer = None
+                            raise OSError(f"Could not open MP4 output: {video_file}")
+                    video_writer.write(scrubbed_frame)
 
                 if not cv2.imwrite(
                     str(scrubbed_path),
@@ -308,11 +403,21 @@ def scrub_video(
 
     finally:
         capture.release()
+        if video_writer is not None:
+            video_writer.release()
+
+    if video_file is not None and video_writer is None:
+        raise ValueError("Input video has no readable frames.")
+    if video_file is not None and (
+        not video_file.is_file() or video_file.stat().st_size == 0
+    ):
+        raise OSError(f"Could not write scrubbed MP4: {video_file}")
 
     return VisualScrubResult(
-        output_path=str(scrubbed_dir),
+        output_path=str(video_file if video_file is not None else scrubbed_dir),
         faces_detected=faces_detected,
         processing_time_seconds=(
             perf_counter() - started_at
         ),
+        tokens=sorted(tokens),
     )

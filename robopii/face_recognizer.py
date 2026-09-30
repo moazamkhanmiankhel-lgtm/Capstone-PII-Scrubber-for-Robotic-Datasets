@@ -92,12 +92,17 @@ class InMemoryFaceRecognizer:
         if not token or not token.strip():
             raise ValueError("Token cannot be empty.")
 
-        embedding = self.create_embedding(face_image)
+        self.register_embedding(token, self.create_embedding(face_image))
 
-        self._embeddings.setdefault(
-            token,
-            [],
-        ).append(embedding)
+    def register_embedding(self, token: str, embedding: np.ndarray) -> None:
+        """Load a saved face embedding under its existing token."""
+        if not token or not token.strip():
+            raise ValueError("Token cannot be empty.")
+        vector = np.asarray(embedding, dtype=np.float32).flatten()
+        magnitude = np.linalg.norm(vector)
+        if not vector.size or not np.isfinite(magnitude) or magnitude == 0:
+            raise ValueError("Face embedding must be a finite nonzero vector.")
+        self._embeddings.setdefault(token, []).append(vector / magnitude)
 
     def identify(
         self,

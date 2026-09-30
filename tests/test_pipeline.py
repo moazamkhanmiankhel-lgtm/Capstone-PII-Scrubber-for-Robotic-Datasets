@@ -254,8 +254,11 @@ class TestVideoPipeline:
 
         stored = get_primary_record(result.record_id)
 
-        assert result.scrubbed_media_path == str(settings.pipeline.output_dir / result.record_id)
-        assert Path(result.scrubbed_media_path, "frame_000001.jpg").is_file()
+        record_dir = settings.pipeline.output_dir / result.record_id
+
+        assert result.scrubbed_media_path == str(record_dir / "scrubbed.mp4")
+        assert Path(result.scrubbed_media_path).is_file()
+        assert (record_dir / "frame_000001.jpg").is_file()
         assert "jane" not in result.scrubbed_media_path.lower()
         assert len(result.tokens) == 2
         assert stored["metadata"]["faces_detected"] == 2
@@ -281,7 +284,7 @@ class TestVideoPipeline:
 
         stored = get_primary_record(result.record_id)["scrubbed_media_path"]
 
-        assert stored == f"output/{output_dir.name}/{result.record_id}"
+        assert stored == f"output/{output_dir.name}/{result.record_id}/scrubbed.mp4"
         assert result.scrubbed_media_path == stored
         assert str(PROJECT_ROOT.parent) not in stored
 
@@ -297,6 +300,47 @@ class TestVideoPipeline:
         Pipeline(settings, fakes.components()).process_video(media_file("clip.mp4"))
 
         assert not audit_primary_store().passed
+
+    def test_face_tokens_are_stored_with_text_tokens(self, settings, fakes, media_file):
+        face = "PERSON_FACE00000001"
+        fakes.video = FakeVideoScrubber(face_tokens=[face])
+
+        result = Pipeline(settings, fakes.components()).process_video(media_file("clip.mp4"))
+        stored = get_primary_record(result.record_id)
+
+        assert result.tokens[0] == face
+        assert len(result.tokens) == 3
+        assert stored["tokens"] == result.tokens
+        assert stored["metadata"]["face_tokens"] == 1
+        assert fakes.video.calls[0]["tokenize_faces"] is True
+
+    def test_same_face_links_two_videos(self, settings, fakes, media_file):
+        """The context for a face token spans every video it appeared in."""
+        from robopii.retrieval import build_context
+
+        face = "PERSON_FACE00000001"
+        fakes.video = FakeVideoScrubber(face_tokens=[face])
+        fakes.audio = FakeTranscriber(no_audio=True)
+        pipeline = Pipeline(settings, fakes.components())
+
+        pipeline.process_video(media_file("day1.mp4"))
+        pipeline.process_video(media_file("day2.mp4"))
+
+        assert build_context(face).interaction_count == 2
+
+    def test_face_tokens_and_mp4_can_be_switched_off(self, settings, fakes, media_file):
+        settings = with_pipeline(
+            settings, tokenize_faces=False, write_scrubbed_mp4=False
+        )
+        fakes.video = FakeVideoScrubber(face_tokens=["PERSON_FACE00000001"])
+
+        result = Pipeline(settings, fakes.components()).process_video(media_file("clip.mp4"))
+
+        assert fakes.video.calls[0] == {"tokenize_faces": False, "output_video_path": None}
+        assert "PERSON_FACE00000001" not in result.tokens
+        assert result.scrubbed_media_path == str(
+            settings.pipeline.output_dir / result.record_id
+        )
 
     def test_original_frames_are_deleted(self, settings, fakes, media_file):
         Pipeline(settings, fakes.components()).process_video(media_file("clip.mp4"))
@@ -515,8 +559,13 @@ class TestRealComponents:
 
         result = Pipeline(settings, components).process_video(clip)
 
-        frames = sorted(Path(result.scrubbed_media_path).glob("frame_*.jpg"))
+        record_dir = settings.pipeline.output_dir / result.record_id
+        frames = sorted(record_dir.glob("frame_*.jpg"))
+
         assert len(frames) == 5
+        assert Path(result.scrubbed_media_path).name == "scrubbed.mp4"
+        assert Path(result.scrubbed_media_path).stat().st_size > 0
+        assert result.tokens == []
         assert get_primary_record(result.record_id)["metadata"]["faces_detected"] == 0
 
     @pytest.mark.skipif(

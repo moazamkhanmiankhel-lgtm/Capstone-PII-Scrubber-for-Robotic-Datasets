@@ -119,6 +119,18 @@ placeholders instead.
 If either check fails, nothing is written to `primary.db` and the scrubbed
 media folder for that record is deleted.
 
+**Face tokens and MP4 output.** For videos, the pipeline asks the video
+scrubber to give each distinct face a `PERSON_` token
+(`pipeline.tokenize_faces`). The scrubber compares each face with the face
+templates already in the vault, so the same face gets the same token in a
+later video. A face template is an embedding (a list of numbers), not an image,
+and it is stored only in the encrypted vault. Face tokens are stored first in
+the record's `tokens`, followed by the tokens from the transcript. The
+scrubber also encodes the blurred frames as `<record_id>/scrubbed.mp4`
+(`pipeline.write_scrubbed_mp4`), and that file becomes the stored media path.
+The MP4 has no audio track, because the audio is only kept as a scrubbed
+transcript.
+
 **Videos without audio.** If the audio processor raises `ValueError` (no audio
 track), the record is stored with the blurred frames and a null transcript,
 and `metadata.audio_status` is set to `no_audio`. If transcription is not
@@ -193,11 +205,11 @@ wrong types are rejected when the file is loaded.
 
 ## Known Limitations
 
-- **Faces are blurred but not yet tokenised.** `face_recognizer.py` can match
-  a face across frames, but `scrub_video` does not return face crops or boxes,
-  so the pipeline cannot pass faces to it. Linking a face to a `PERSON_` token
-  needs `VisualScrubResult` (or a new function) to expose the detected
-  regions, which is an interface change for the team to agree.
+- **A person has two tokens, not one.** The face token (from the video
+  scrubber) and the name token (from the transcript) are created
+  independently. They are linked only by appearing in the same records, which
+  `build_context` reports as `related_tokens`. Merging them into one identity
+  would need a rule for when a face and a name belong to the same person.
 - **Recall depends on spelling.** A returning person is recognised only if
   the name is transcribed the same way (ignoring case and spacing).
 - **Actors are self-declared.** The authorisation check compares a name

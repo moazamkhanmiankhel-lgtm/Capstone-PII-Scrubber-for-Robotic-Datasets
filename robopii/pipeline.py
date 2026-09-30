@@ -285,10 +285,21 @@ class Pipeline:
         started_at = perf_counter()
 
         try:
+            # Face tokens are looked up in, and saved to, the protected
+            # vault by the video scrubber, so the databases must exist.
+            if self.settings.pipeline.tokenize_faces:
+                initialise_databases()
+
             visual_result = self.components.scrub_video(
                 input_path=str(input_file),
                 output_path=str(output_dir),
                 original_output_dir=str(original_dir),
+                tokenize_faces=self.settings.pipeline.tokenize_faces,
+                output_video_path=(
+                    str(output_dir / "scrubbed.mp4")
+                    if self.settings.pipeline.write_scrubbed_mp4
+                    else None
+                ),
             )
 
             text_outcome = None
@@ -489,12 +500,22 @@ class Pipeline:
 
         timings["total_before_storage"] = round(perf_counter() - started_at, 4)
 
+        # Face tokens come from the video scrubber (one per distinct face),
+        # text tokens from the transcript. A person seen and heard has one
+        # of each; they are linked only by appearing in the same records.
+        face_tokens = list(
+            getattr(visual_result, "tokens", None) or []
+        )
+        text_tokens = [] if text_outcome is None else text_outcome.tokens
+        tokens = list(dict.fromkeys(face_tokens + text_tokens))
+
         metadata: dict[str, Any] = {
             "input_type": input_type,
             "audio_status": audio_status,
             "faces_detected": (
                 None if visual_result is None else visual_result.faces_detected
             ),
+            "face_tokens": len(face_tokens),
             "pii_counts": {} if text_outcome is None else text_outcome.pii_counts,
             "timings_seconds": timings,
         }
@@ -507,7 +528,6 @@ class Pipeline:
         scrubbed_transcript = (
             None if text_outcome is None else text_outcome.scrubbed_text
         )
-        tokens = [] if text_outcome is None else text_outcome.tokens
 
         stored_id = save_primary_record(
             {

@@ -35,6 +35,8 @@ def test_project_settings_file_loads():
     assert settings.storage.data_dir == PROJECT_ROOT / "data"
     assert settings.pipeline.output_dir == PROJECT_ROOT / "output" / "scrubbed"
     assert settings.pipeline.keep_original_frames is False
+    assert settings.pipeline.tokenize_faces is True
+    assert settings.pipeline.write_scrubbed_mp4 is True
     assert "operator" in settings.retrieval.authorised_actors
 
 

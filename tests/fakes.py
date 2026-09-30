@@ -87,12 +87,24 @@ class FakeTextScrubber:
 class FakeVideoScrubber:
     """Writes one scrubbed and one original frame, like the real scrubber."""
 
-    def __init__(self, faces=2, fail=False):
+    def __init__(self, faces=2, fail=False, face_tokens=()):
         self.faces = faces
         self.fail = fail
+        self.face_tokens = list(face_tokens)
         self.original_dirs = []
+        self.calls = []
 
-    def __call__(self, input_path, output_path, original_output_dir=None):
+    def __call__(
+        self,
+        input_path,
+        output_path,
+        original_output_dir=None,
+        tokenize_faces=False,
+        output_video_path=None,
+    ):
+        self.calls.append(
+            {"tokenize_faces": tokenize_faces, "output_video_path": output_video_path}
+        )
         scrubbed_dir = Path(output_path)
         scrubbed_dir.mkdir(parents=True, exist_ok=True)
         (scrubbed_dir / "frame_000001.jpg").write_bytes(b"scrubbed")
@@ -106,10 +118,14 @@ class FakeVideoScrubber:
         if self.fail:
             raise RuntimeError("simulated face detector crash")
 
+        if output_video_path is not None:
+            Path(output_video_path).write_bytes(b"mp4")
+
         return VisualScrubResult(
-            output_path=str(scrubbed_dir),
+            output_path=str(output_video_path or scrubbed_dir),
             faces_detected=self.faces,
             processing_time_seconds=0.25,
+            tokens=list(self.face_tokens) if tokenize_faces else [],
         )
 
 

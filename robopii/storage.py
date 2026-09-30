@@ -836,6 +836,20 @@ class ProtectedVault(_SQLiteStore):
 
         return [row["token"] for row in rows]
 
+    def list_face_mappings(self) -> list[TokenMapping]:
+        """Load saved face templates, logging each protected read."""
+        rows = self.connection.execute(
+            "SELECT token FROM identity_mappings WHERE pii_type = 'FACE'"
+        ).fetchall()
+        return [
+            mapping
+            for row in rows
+            if (mapping := self.get_mapping(
+                row["token"], actor="video_scrubber",
+                reason="match faces across videos",
+            )) is not None
+        ]
+
     def count_mappings(self) -> int:
         """Return how many identity mappings are stored."""
         row = self.connection.execute(
