@@ -24,10 +24,21 @@ EMAIL_PATTERN = re.compile(
     r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"
 )
 
-# Spoken email addresses, for example "jane dot smith at example dot com".
-# Transcription often mangles these, so this catches only the clean case.
+# Spoken email addresses. Covers both "jane dot smith at example dot com"
+# and the transcribed form "jane.smith at example.com", where the dots
+# survived as punctuation but the at sign did not.
 SPOKEN_EMAIL_PATTERN = re.compile(
-    r"\b[\w]+(?:\s+dot\s+[\w]+)*\s+at\s+[\w]+(?:\s+dot\s+[\w]+)+\b",
+    r"\b[\w]+(?:(?:\s+dot\s+|\.)[\w]+)*\s+at\s+[\w]+(?:\s+dot\s+|\.)(?:com|org|net|edu|gov|au|io|co)\b",
+    re.IGNORECASE,
+)
+
+# Email addresses whos @ sign did not survive transcription.
+# Email addresses whose at sign did not survive transcription. Matches any
+# token ending in a common domain suffix, since that is the only part that
+# reliably survives. This over-redacts ordinary web addresses, which is the
+# safer failure given privacy preservation is the primary goal.
+DOMAIN_EMAIL_PATTERN = re.compile(
+    r"\b[\w.+-]+\.(?:com|org|net|edu|gov|io|co|info)(?:\.(?:au|uk|nz))?\b",
     re.IGNORECASE,
 )
 
@@ -56,6 +67,9 @@ def _regex_spans(text: str) -> list[tuple[int, int, str]]:
 
     for match in PHONE_PATTERN.finditer(text):
         spans.append((match.start(), match.end(), "PHONE"))
+
+    for match in DOMAIN_EMAIL_PATTERN.finditer(text):
+        spans.append((match.start(), match.end(), "EMAIL"))
 
     return spans
 
