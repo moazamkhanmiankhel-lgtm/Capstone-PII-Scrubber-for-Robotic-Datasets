@@ -19,6 +19,7 @@ class VisualScrubResult:
     output_path: str
     faces_detected: int
     processing_time_seconds: float
+    tokens: list[str] = field(default_factory=list)
 
 
 @dataclass
