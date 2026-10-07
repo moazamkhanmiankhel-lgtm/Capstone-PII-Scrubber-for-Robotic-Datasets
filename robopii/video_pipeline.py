@@ -1,41 +1,51 @@
-"""Run video scrubbing and persist its face tokens without audio processing."""
+"""Run video scrubbing and persist its face tokens without audio processing.
+
+This is the video-only entry point. It goes through the main
+``robopii.pipeline.Pipeline`` with transcription switched off, so a
+video-only record gets the same protections as any other record:
+
+* unblurred frames are written to a temporary folder and deleted;
+* output folders are named after the record ID, not the input file, and the
+  input file name is never stored (file names can contain names);
+* the stored media path is relative to the project root;
+* settings come from ``config/settings.yaml``, and per-stage timings are
+  stored with the record.
+
+Equivalent command: ``python main.py process <video> --no-audio``.
+"""
 
 import argparse
-from pathlib import Path
-from uuid import uuid4
+from dataclasses import replace
 
+from robopii.config import Settings, get_config
 from robopii.models import ProcessingResult
-from robopii.storage import initialise_databases, save_primary_record
-from robopii.video_scrubber import scrub_video
+from robopii.pipeline import Pipeline, PipelineComponents
 
 
-def process_video_only(input_path: str) -> ProcessingResult:
-    """Save a scrubbed MP4 and link it to person tokens in the databases."""
-    input_file = Path(input_path)
-    if not input_file.is_file():
-        raise FileNotFoundError(f"Input video does not exist: {input_file}")
+def video_only_settings(settings: Settings | None = None) -> Settings:
+    """Return settings for a video-only run: face tokens on, no audio."""
+    settings = settings or get_config()
 
-    initialise_databases()
-    output_path = Path("output") / "scrubbed_frames" / input_file.stem
-    mp4_path = (
-        Path("output") / "scrubbed_videos"
-        / f"{input_file.stem}_{uuid4().hex[:8]}.mp4"
+    return replace(
+        settings,
+        pipeline=replace(
+            settings.pipeline,
+            transcribe_video_audio=False,
+            tokenize_faces=True,
+        ),
     )
-    visual = scrub_video(
-        str(input_file), str(output_path), tokenize_faces=True,
-        output_video_path=str(mp4_path),
-    )
-    record_id = save_primary_record({
-        "scrubbed_media_path": visual.output_path,
-        "tokens": visual.tokens,
-        "source_label": input_file.name,
-    })
-    return ProcessingResult(
-        record_id=record_id,
-        scrubbed_media_path=visual.output_path,
-        scrubbed_transcript=None,
-        tokens=visual.tokens,
-    )
+
+
+def process_video_only(
+    input_path: str,
+    settings: Settings | None = None,
+    components: PipelineComponents | None = None,
+) -> ProcessingResult:
+    """Save a scrubbed video and link it to person tokens in the databases."""
+    return Pipeline(
+        video_only_settings(settings),
+        components,
+    ).process_video(input_path)
 
 
 def main() -> None:

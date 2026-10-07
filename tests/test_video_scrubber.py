@@ -137,9 +137,13 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
             self.token = token
             self.loaded_from_vault = True
 
+    from robopii.config import PipelineSettings, Settings, set_config
+
     input_file = tmp_path / "input.mp4"
     input_file.touch()
     configure_storage(data_dir=tmp_path / "database")
+    # Keep scrubbed output inside the test folder instead of the project.
+    set_config(Settings(pipeline=PipelineSettings(output_dir=tmp_path / "output")))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(cv2, "VideoCapture", FakeCapture)
     monkeypatch.setattr(cv2, "VideoWriter", FakeWriter)
@@ -159,5 +163,8 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
         assert second.scrubbed_media_path != result.scrubbed_media_path
         assert get_primary_record(second.record_id)["tokens"] == result.tokens
         assert get_protected_vault().count_mappings() == 1
+        # The input file name must never reach the database.
+        assert "input.mp4" not in str(get_primary_record(result.record_id))
     finally:
         configure_storage()
+        set_config(None)

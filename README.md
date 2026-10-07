@@ -37,6 +37,7 @@ the first time it runs.
 ```bash
 # Scrub and store an input (image, video, audio or .txt transcript)
 python main.py process sample_data/videos/clip.mp4
+python main.py process sample_data/videos/clip.mp4 --no-audio   # faces only
 python main.py process --text "Hi, I'm Jane Smith, call me on 0412 345 678"
 
 # Browse what is stored (no identities shown)

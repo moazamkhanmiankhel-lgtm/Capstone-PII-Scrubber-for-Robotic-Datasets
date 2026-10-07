@@ -418,6 +418,56 @@ class TestVideoPipeline:
             Pipeline(settings, fakes.components()).process_video(tmp_path / "nope.mp4")
 
 
+class TestVideoOnlyEntryPoint:
+    """robopii.video_pipeline goes through the same Pipeline, without audio."""
+
+    def test_video_only_skips_audio_and_keeps_face_tokens(
+        self, settings, fakes, media_file
+    ):
+        from robopii.video_pipeline import process_video_only
+
+        face = "PERSON_FACE00000001"
+        fakes.video = FakeVideoScrubber(face_tokens=[face])
+
+        result = process_video_only(
+            str(media_file("jane_smith_0412345678.mp4")),
+            settings=settings,
+            components=fakes.components(),
+        )
+        stored = get_primary_record(result.record_id)
+
+        assert fakes.audio.calls == []
+        assert result.tokens == [face]
+        assert result.scrubbed_transcript is None
+        assert stored["metadata"]["audio_status"] == "skipped"
+        assert fakes.video.calls[0]["tokenize_faces"] is True
+        assert "jane" not in str(stored).lower()
+
+    def test_video_only_deletes_unblurred_frames(self, settings, fakes, media_file):
+        from robopii.video_pipeline import process_video_only
+
+        process_video_only(
+            str(media_file("clip.mp4")),
+            settings=settings,
+            components=fakes.components(),
+        )
+
+        assert fakes.video.original_dirs
+        assert not fakes.video.original_dirs[0].exists()
+
+    def test_cli_no_audio_flag(self, settings, fakes, media_file, monkeypatch):
+        import main
+        from robopii import pipeline as pipeline_module
+
+        monkeypatch.setattr(main, "load_config", lambda path=None: settings)
+        monkeypatch.setattr(
+            pipeline_module, "PipelineComponents", lambda: fakes.components()
+        )
+
+        assert main.main(["process", str(media_file("clip.mp4")), "--no-audio"]) == 0
+        assert fakes.audio.calls == []
+
+
 class TestImageAndAudioPipeline:
     def test_image(self, settings, fakes, media_file):
         result = Pipeline(settings, fakes.components()).process_file(

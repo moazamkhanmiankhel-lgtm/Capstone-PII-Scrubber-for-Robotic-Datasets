@@ -131,6 +131,16 @@ scrubber also encodes the blurred frames as `<record_id>/scrubbed.mp4`
 The MP4 has no audio track, because the audio is only kept as a scrubbed
 transcript.
 
+**Video-only entry point.** `robopii/video_pipeline.py`
+(`process_video_only()`, or `python -m robopii.video_pipeline <video>`) is a
+thin wrapper around the same `Pipeline` with transcription switched off and
+face tokens switched on. `python main.py process <video> --no-audio` does the
+same. Because it is the same pipeline, video-only records also get temporary
+unblurred frames, record-ID output folders, relative media paths, no stored
+file names, and stored timings. Earlier, this entry point wrote records
+directly: it kept unblurred frames in `data/original_frames/<file name>/` and
+stored the input file name in the primary database.
+
 **Videos without audio.** If the audio processor raises `ValueError` (no audio
 track), the record is stored with the blurred frames and a null transcript,
 and `metadata.audio_status` is set to `no_audio`. If transcription is not

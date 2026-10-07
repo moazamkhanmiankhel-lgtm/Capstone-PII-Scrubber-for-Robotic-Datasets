@@ -3,6 +3,7 @@
 Examples::
 
     python main.py process sample_data/videos/clip.mp4
+    python main.py process sample_data/videos/clip.mp4 --no-audio
     python main.py process --text "Hi, I'm Jane Smith, call me on 0412 345 678"
     python main.py records
     python main.py context PERSON_A1B2C3D4E5F6
@@ -53,7 +54,12 @@ def _print_record(record: dict) -> None:
 def command_process(args) -> int:
     from robopii.pipeline import Pipeline
 
-    pipeline = Pipeline()
+    if args.no_audio:
+        from robopii.video_pipeline import video_only_settings
+
+        pipeline = Pipeline(video_only_settings())
+    else:
+        pipeline = Pipeline()
 
     if args.text is not None:
         result = pipeline.process_transcript(args.text)
@@ -229,6 +235,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     process.add_argument("path", nargs="?", help="Input file.")
     process.add_argument("--text", help="Process this transcript text instead of a file.")
+    process.add_argument(
+        "--no-audio",
+        action="store_true",
+        help="For videos: blur and tokenise faces only, skip transcription.",
+    )
     process.set_defaults(handler=command_process)
 
     records = commands.add_parser("records", help="List stored scrubbed records.")
