@@ -91,7 +91,7 @@ processed:
 File names can contain PII (for example `jane_smith_0412345678.mp4`), and the
 media path is stored in the primary database.
 
-The stored path is relative to the project root (`output/scrubbed/<record_id>`),
+The stored path is relative to the working directory (`output/scrubbed/<record_id>`),
 not absolute. An absolute path includes the home folder, which on most
 machines is the user's name (`C:\Users\Andre\...`). This was found by
 `python main.py audit` during manual testing on Windows: the tester's

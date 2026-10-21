@@ -19,3 +19,7 @@ data/*.sqlite
 data/vault.key
 data/original_frames/
 scratch_*.py
+
+build/
+dist/
+*.egg-info/

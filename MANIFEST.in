@@ -1,0 +1,8 @@
+include requirements.txt
+include pytest.ini
+include main.py
+include conftest.py
+recursive-include config *.yaml
+recursive-include docs *.md
+recursive-include tests *.py
+recursive-include robopii/assets *.tflite *.onnx

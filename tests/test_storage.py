@@ -1,5 +1,5 @@
 import pytest
-
+import os
 from robopii import storage
 from robopii.models import TokenMapping
 from robopii.storage import (
@@ -643,6 +643,7 @@ def test_configure_storage_accepts_explicit_paths(tmp_path):
         storage.configure_storage()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits do not apply on Windows")
 def test_database_files_are_owner_only(shared_storage):
     storage.initialise_databases()
 

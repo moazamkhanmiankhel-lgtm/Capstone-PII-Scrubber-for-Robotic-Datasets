@@ -1,7 +1,7 @@
 # RoboPII shared settings.
 #
 # Loaded by robopii/config.py. Relative paths are resolved against the
-# project root, not the directory the command is run from.
+# working directory.
 #
 # Priority, highest first:
 #   1. Environment variables (ROBOPII_DATA_DIR, ROBOPII_VAULT_SECRET, ...)
