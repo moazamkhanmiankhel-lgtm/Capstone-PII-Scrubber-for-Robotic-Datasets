@@ -9,9 +9,8 @@ import numpy as np
 
 
 DEFAULT_MODEL_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "config"
-    / "models"
+    Path(__file__).resolve().parent
+    / "assets"
     / "face_recognition_sface.onnx"
 )
 

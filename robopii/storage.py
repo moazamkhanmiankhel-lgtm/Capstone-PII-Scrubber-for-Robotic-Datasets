@@ -33,7 +33,7 @@ from robopii.token_manager import (
 )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+from robopii.config import PROJECT_ROOT
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data"
 
 DATA_DIR_ENV_VAR = "ROBOPII_DATA_DIR"

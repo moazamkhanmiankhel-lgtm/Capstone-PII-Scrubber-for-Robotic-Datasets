@@ -180,7 +180,7 @@ def find_leaked_values(
 def storable_media_path(path: str | Path) -> str:
     """Return the media path in the form stored in the primary store.
 
-    Paths inside the project are stored relative to the project root, for
+    Paths inside the working directory are stored relative to that directory, for
     example ``output/scrubbed/<record_id>``. An absolute path would carry
     the home folder, and on most machines the home folder is the user's
     name (``C:\\Users\\Andre\\...``), which is PII.

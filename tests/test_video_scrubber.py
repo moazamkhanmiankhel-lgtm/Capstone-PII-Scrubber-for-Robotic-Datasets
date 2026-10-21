@@ -154,6 +154,7 @@ def test_video_tokens_are_stored_with_primary_record(tmp_path, monkeypatch):
         assert result.scrubbed_media_path.endswith(".mp4")
         assert (tmp_path / result.scrubbed_media_path).is_file()
         assert get_protected_vault().count_mappings() == 1
+        assert not (tmp_path / "data" / "original_frames").exists()
         second = video_pipeline.process_video_only(str(input_file))
         assert second.tokens == result.tokens
         assert second.scrubbed_media_path != result.scrubbed_media_path

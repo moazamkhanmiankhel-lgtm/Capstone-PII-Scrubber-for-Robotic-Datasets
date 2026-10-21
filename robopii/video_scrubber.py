@@ -12,9 +12,8 @@ from robopii.models import DetectedPII, VisualScrubResult
 
 
 MODEL_PATH = (
-    Path(__file__).resolve().parents[1]
-    / "config"
-    / "models"
+    Path(__file__).resolve().parent
+    / "assets"
     / "blaze_face_short_range.tflite"
 )
 

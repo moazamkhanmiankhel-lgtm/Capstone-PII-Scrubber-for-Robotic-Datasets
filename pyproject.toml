@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robopii-scrubber"
+version = "0.1.0"
+description = "Context-preserving PII scrubbing for robotic datasets"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["cryptography>=42", "PyYAML>=6"]
+
+[project.optional-dependencies]
+video = ["numpy>=1.26", "opencv-python>=4.8,<5", "mediapipe>=0.10.30,<1.0"]
+text = ["spacy>=3.7,<4"]
+audio = ["openai-whisper==20250625"]
+all = ["numpy>=1.26", "opencv-python>=4.8,<5", "mediapipe>=0.10.30,<1.0", "spacy>=3.7,<4", "openai-whisper==20250625"]
+dev = ["pytest>=8,<10", "build>=1"]
+
+[project.scripts]
+robopii = "robopii.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["robopii*"]
+
+[tool.setuptools.package-data]
+robopii = ["assets/*.tflite", "assets/*.onnx"]

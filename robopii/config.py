@@ -27,7 +27,8 @@ from typing import Any
 import yaml
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# Runtime files belong to the working directory, never site-packages.
+PROJECT_ROOT = Path.cwd().resolve()
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "settings.yaml"
 
 CONFIG_ENV_VAR = "ROBOPII_CONFIG"

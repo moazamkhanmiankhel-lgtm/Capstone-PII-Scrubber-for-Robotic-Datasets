@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 import wave
 
@@ -56,6 +57,7 @@ def test_returns_transcript_result(tmp_path):
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(shutil.which("say") is None, reason="Speech fixture requires macOS say")
 def test_transcribes_known_speech(tmp_path):
     wav_path = tmp_path / "speech.wav"
     _make_spoken_wav(wav_path, "the weather is cold today")

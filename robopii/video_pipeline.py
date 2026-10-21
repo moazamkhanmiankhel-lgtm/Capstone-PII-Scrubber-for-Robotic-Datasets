@@ -1,41 +1,29 @@
 """Run video scrubbing and persist its face tokens without audio processing."""
 
 import argparse
-from pathlib import Path
-from uuid import uuid4
 
 from robopii.models import ProcessingResult
-from robopii.storage import initialise_databases, save_primary_record
 from robopii.video_scrubber import scrub_video
 
 
 def process_video_only(input_path: str) -> ProcessingResult:
     """Save a scrubbed MP4 and link it to person tokens in the databases."""
-    input_file = Path(input_path)
-    if not input_file.is_file():
-        raise FileNotFoundError(f"Input video does not exist: {input_file}")
+    # Use the same storage, naming and raw-frame cleanup as the full pipeline.
+    from pathlib import Path
+    from dataclasses import replace
+    from robopii.config import get_config
+    from robopii.pipeline import Pipeline, PipelineComponents
 
-    initialise_databases()
-    output_path = Path("output") / "scrubbed_frames" / input_file.stem
-    mp4_path = (
-        Path("output") / "scrubbed_videos"
-        / f"{input_file.stem}_{uuid4().hex[:8]}.mp4"
-    )
-    visual = scrub_video(
-        str(input_file), str(output_path), tokenize_faces=True,
-        output_video_path=str(mp4_path),
-    )
-    record_id = save_primary_record({
-        "scrubbed_media_path": visual.output_path,
-        "tokens": visual.tokens,
-        "source_label": input_file.name,
-    })
-    return ProcessingResult(
-        record_id=record_id,
-        scrubbed_media_path=visual.output_path,
-        scrubbed_transcript=None,
-        tokens=visual.tokens,
-    )
+    settings = get_config()
+    settings = replace(settings, pipeline=replace(
+        settings.pipeline,
+        output_dir=Path.cwd() / "output" / "scrubbed",
+        transcribe_video_audio=False,
+        tokenize_faces=True,
+        write_scrubbed_mp4=True,
+    ))
+    return Pipeline(settings, PipelineComponents(scrub_video=scrub_video)).process_video(input_path)
+
 
 
 def main() -> None:
