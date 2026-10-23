@@ -86,21 +86,14 @@ The same audit can be run against a real database:
 python main.py audit
 ```
 
-## Final Demonstration Checklist
+## Handover evidence and remaining checks
 
-To be run together with all component owners before the demo:
-
-- [ ] `pytest` passes on every team member's machine.
-- [ ] `python main.py process <video with speech>` produces blurred frames,
-      a token-linked transcript and `audio_status: transcribed`.
-- [ ] `python main.py process <image with faces>` reports `faces_detected` > 0.
-- [ ] A second clip of the same speaker reuses the same `PERSON_` token.
-- [ ] `python main.py recall --type PERSON --value "<name>"` finds both clips.
-- [ ] `python main.py reveal <token> --actor intruder --reason test` is
-      refused and shows as `denied` in `python main.py access-log`.
-- [ ] `python main.py audit` reports PASS.
-- [ ] `data/original_frames/` does not exist or is empty.
-- [ ] `git status` shows no `.db`, `vault.key` or media files staged.
+See [handover.md](handover.md) for the completed Windows checks and the two
+explicitly deferred checks. See [evaluation_results.md](evaluation_results.md)
+for measured accuracy and latency, and [evaluation.md](evaluation.md) for the
+reproducible labelling/scoring workflow. Video and audio are evaluated
+separately; no speaking video is required. A face token and a spoken-name token
+are separate identities and must not be conflated when checking recognition.
 
 ## Latency Measurement
 

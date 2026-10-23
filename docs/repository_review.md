@@ -1,7 +1,9 @@
 # Repository review and Python package handover
 
-Reviewed public main commit `926cb3c` (pipeline integration merge).
-Local changes in this handover have not been pushed to GitHub.
+Historical review of commit `926cb3c` before packaging was merged.
+Packaging was subsequently merged into main at `ee36a64`.
+The verification results below describe that earlier review, not a new test run.
+See [handover.md](handover.md) for current acceptance status.
 
 ## Verdict
 

@@ -110,6 +110,10 @@ tests/                unit, integration and end-to-end tests
 
 ## Documentation
 
+- [How to use: install the wheel and process video](docs/how_to_use.md)
+- [Handover and final acceptance checks](docs/handover.md)
+- [Labelled accuracy evaluation](docs/evaluation.md)
+- [Measured results and report summary](docs/evaluation_results.md)
 - `docs/architecture.md`: processing flow, interfaces, retrieval levels
 - `docs/storage_design.md`: databases, tokens, encryption
 - `docs/testing.md`: how to test, what is covered, demo checklist
